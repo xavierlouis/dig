@@ -1,0 +1,152 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/* Gradient border: visible at bottom, fades to invisible at top.
+   Works on transparent backgrounds using mask-composite. */
+.border-fade{
+  position: relative;
+}
+.border-fade::before{
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(to top, rgba(185,177,201,0.25), transparent 60%);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Enter button — purple game-style with animated chevrons */
+.enter-btn{
+  position: relative;
+  overflow: hidden;
+}
+.enter-btn::before{
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(160,130,220,.3), rgba(120,90,200,.2), transparent 60%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.enter-btn:hover::before{
+  opacity: 1;
+}
+.enter-btn:hover{
+  box-shadow:
+    0 0 24px rgba(160,130,220,.3),
+    0 0 48px rgba(120,90,200,.12);
+}
+.enter-btn .chevron-left,
+.enter-btn .chevron-right{
+  transition: opacity .3s;
+}
+.enter-btn:hover .chevron-left{
+  animation: chevronLeft .9s ease-in-out infinite;
+}
+.enter-btn:hover .chevron-right{
+  animation: chevronRight .9s ease-in-out infinite;
+}
+
+@keyframes chevronLeft{
+  0%, 100%{ transform: translateX(0); opacity: .6; }
+  50%{ transform: translateX(-4px); opacity: 1; }
+}
+@keyframes chevronRight{
+  0%, 100%{ transform: translateX(0); opacity: .6; }
+  50%{ transform: translateX(4px); opacity: 1; }
+}
+
+/* Spinning-border button — shared base */
+.spin-btn{
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s;
+}
+.spin-btn::before{
+  content: '';
+  position: absolute;
+  inset: -80%;
+  animation: none;
+  opacity: 0;
+  transition: opacity .3s;
+}
+.spin-btn::after{
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 13px;
+}
+.spin-btn:hover::before{
+  opacity: 1;
+  animation: borderSpin 2.5s linear infinite;
+}
+.spin-btn:hover{
+  border-color: transparent;
+}
+
+/* Mint variant — gold / yellow */
+.spin-btn-mint{
+  border: 1px solid rgba(220,180,60,.25);
+}
+.spin-btn-mint::before{
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(240,200,80,.6) 25%,
+    rgba(255,220,100,.85) 30%,
+    rgba(240,200,80,.6) 35%,
+    transparent 60%
+  );
+}
+.spin-btn-mint::after{
+  background: #1a1725;
+}
+
+/* Enter variant — orange (#FF9B3D) */
+.spin-btn-enter{
+  border: 1px solid rgba(255,155,61,.25);
+}
+.spin-btn-enter::before{
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(255,155,61,.6) 25%,
+    rgba(255,180,90,.85) 30%,
+    rgba(255,155,61,.6) 35%,
+    transparent 60%
+  );
+}
+.spin-btn-enter::after{
+  background: rgba(26,23,37,.35);
+}
+
+@keyframes borderSpin{
+  0%{ transform: rotate(0deg); }
+  100%{ transform: rotate(360deg); }
+}
+
+/* Tier-colored shifting border for recap */
+@keyframes tierShift{
+  0%, 100%{
+    border: 1.5px solid var(--tier-0);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tier-0) 25%, transparent);
+  }
+  33%{
+    border: 1.5px solid var(--tier-1);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tier-1) 25%, transparent);
+  }
+  66%{
+    border: 1.5px solid var(--tier-2);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tier-2) 25%, transparent);
+  }
+}
