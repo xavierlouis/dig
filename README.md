@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DIG — Daily Tomb-Raiding on Solana's Token Graveyard
+
+DIG is a daily game where players mint dig packs, open tombs, and unearth prizes from Solana's dead token graveyard. On winning reveals, choose between safe SOL or a higher-value allocation of the day's featured dead token. A portion of every pack sale buys that token on-market, creating real buy pressure — literally resurrecting dead tokens.
+
+## How It Works
+
+1. **Connect wallet** — Phantom, Backpack, or any Wallet Standard compatible wallet
+2. **Mint a Pickaxe Pack** (0.06 SOL) — contains 3 digs
+3. **Enter the level** — explore the cave and open 3 tombs
+4. **Reveal your tier** — Dust, Bone, Coffin, Zombie, or the rare Resurrect (jackpot)
+5. **Choose your reward** — safe SOL or a premium allocation of today's dead token
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router) + React 19
+- **Styling:** Tailwind CSS v4 + Framer Motion
+- **Game Engine:** HTML5 Canvas (tomb rendering, animations, particles)
+- **Particles:** tsparticles (fireflies, cave dust)
+- **Audio:** Howler.js (ambient music + sound effects)
+- **State:** Zustand
+- **Blockchain:** @solana/web3.js, Wallet Adapter, SPL Token
+- **Deploy:** Vercel
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A Solana wallet (Phantom recommended)
+
+### Install & Run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Mock Mode (no wallet needed)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+By default, the app runs in mock mode with a simulated wallet and balances. No Solana connection required.
 
-## Learn More
+### Blockchain Mode
 
-To learn more about Next.js, take a look at the following resources:
+To enable real Solana transactions:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Run the devnet setup script to create a treasury wallet and SPL token mint:
+   ```bash
+   npx tsx scripts/setup-devnet.ts
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+2. Create `.env.local` with the output values:
+   ```env
+   NEXT_PUBLIC_USE_BLOCKCHAIN=true
+   NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+   NEXT_PUBLIC_SOLANA_NETWORK=devnet
+   NEXT_PUBLIC_TREASURY_ADDRESS=<your treasury pubkey>
+   NEXT_PUBLIC_DIG_TOKEN_MINT=<your mint address>
+   TREASURY_KEYPAIR=<base58 encoded secret key>
+   ```
 
-## Deploy on Vercel
+3. Optionally add token metadata (so the token shows as "DIG Pickaxe" in wallets):
+   ```bash
+   npx tsx scripts/add-token-metadata.ts
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+4. Restart the dev server.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Economy
+
+| Split | % |
+|---|---|
+| Prize Pool | 60% |
+| Token Buy Pressure | 20% |
+| Treasury | 15% |
+| Jackpot | 5% |
+
+| Tier | Odds | SOL Payout |
+|---|---|---|
+| Dust | 65% | 0 |
+| Bone | 20% | 0.005 |
+| Coffin | 10% | 0.03 |
+| Zombie | 4.5% | 0.10 |
+| Resurrect | 0.5% | Jackpot |
+
+## Project Structure
+
+```
+src/
+├── app/                  # Next.js App Router pages
+│   ├── page.tsx          # Home (hero + pack shop)
+│   ├── level/page.tsx    # Level experience (canvas game)
+│   └── api/              # Server routes (mint-digs, claim-reward)
+├── components/
+│   ├── DigHero.tsx       # Featured token tombstone display
+│   ├── PackShop.tsx      # Pack minting + level entry
+│   └── level/            # Canvas game engine + overlays
+├── services/
+│   ├── mock/             # Mock service (local play)
+│   └── blockchain/       # Real Solana service
+├── store/                # Zustand state
+├── config/               # Economy config, daily token rotation
+└── lib/                  # RNG, sound engine, economy math
+```
+
+## Deploy
+
+Deployed on Vercel. Set all environment variables in **Project Settings > Environment Variables** and redeploy.
+
+## License
+
+Private — all rights reserved.
