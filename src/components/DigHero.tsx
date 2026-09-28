@@ -1,27 +1,32 @@
 // src/components/DigHero.tsx
 'use client';
 
+import { useCallback, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
 import { useWeeklyToken } from '@/hooks/useWeeklyToken';
 import { formatSol } from '@/lib/game/economy';
-import JackpotDisplay from './JackpotDisplay';
+import { JackpotBagPopover, JackpotEngraving } from './JackpotDisplay';
 
 export default function DigHero() {
   const token = useWeeklyToken();
   const solSpent = useGameStore((s) => s.jackpot?.buyingNow.solSpentThisWeek ?? 0);
+  const [bagOpen, setBagOpen] = useState(false);
+  const closeBag = useCallback(() => setBagOpen(false), []);
 
   // Fallback while loading
   const coinName = token?.name ?? "$RUGCAT";
   const bornDate = token ? token.born.replace(/^(\w+)\s/, (_, m: string) => m.slice(0, 3) + ' ') : "Jan 2024";
   const diedDate = token ? token.died.replace(/^(\w+)\s/, (_, m: string) => m.slice(0, 3) + ' ') : "Mar 2024";
-  const epitaph = token?.epitaph ?? "Promised the moon.\nDelivered a rug.";
 
   return (
     // Panel: transparent bg, gradient border that fades at top
     <div className="relative border-fade rounded-xl2 overflow-hidden">
-      {/* Jackpot crypt bag — top-right */}
-      <div className="absolute top-3 right-3 z-30">
-        <JackpotDisplay />
+      {/* Crypt bag popover — beside the tombstone, above the grass layer */}
+      <div className="absolute top-[88px] left-[calc(50%+162px)] z-30">
+        <AnimatePresence>
+          {bagOpen && <JackpotBagPopover onClose={closeBag} />}
+        </AnimatePresence>
       </div>
       {/* Tomb scene — pt only, no bottom padding so grass is flush */}
       <div className="flex justify-center pt-8">
@@ -59,10 +64,10 @@ export default function DigHero() {
               {/* Separator */}
               <div className="mt-auto w-[60%] h-px bg-gradient-to-r from-transparent via-muted/30 to-transparent" />
 
-              {/* Epitaph */}
-              <p className="mt-6 mb-auto font-serif text-[clamp(12px,3.4vw,16px)] leading-snug text-center opacity-90 whitespace-pre-line">
-                {epitaph}
-              </p>
+              {/* Resurrection jackpot (click: crypt bag) */}
+              <div className="mt-4 mb-auto">
+                <JackpotEngraving open={bagOpen} onToggle={() => setBagOpen((o) => !o)} />
+              </div>
             </div>
           </div>
 

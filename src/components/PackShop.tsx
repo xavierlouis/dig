@@ -12,32 +12,24 @@ const levels: {
   level: number;
   levelId: LevelId;
   name: string;
-  tool: string;
-  toolImg: string;
   levelImg: string;
 }[] = [
   {
     level: 1,
     levelId: 'shallow_grave',
     name: "Shallow Graves",
-    tool: "Pickaxe",
-    toolImg: "/graveyard/pickaxe.png",
     levelImg: "/graveyard/level-1-640.png",
   },
   {
     level: 2,
     levelId: 'deep_crypt',
     name: "Deep Crypt",
-    tool: "Lamp",
-    toolImg: "/graveyard/lamp.png",
     levelImg: "/graveyard/level-2-640.png",
   },
   {
     level: 3,
     levelId: 'ancient_vault',
     name: "Ancient Vault",
-    tool: "Crypt Key",
-    toolImg: "/graveyard/crypt-key.png",
     levelImg: "/graveyard/level-3-640.png",
   },
 ];
@@ -125,22 +117,13 @@ export default function PackShop() {
 
                     <div className="my-3 h-px w-full bg-gradient-to-r from-transparent via-muted/20 to-transparent" />
 
-                    {/* Tool image — tweak h-[64px] to resize */}
-                    <div className="flex justify-center mb-3">
-                      <img
-                        src={lvl.toolImg}
-                        alt={lvl.tool}
-                        className="h-[64px] w-auto object-contain transition-[filter] duration-300 group-hover:[filter:drop-shadow(0_0_8px_rgba(255,170,60,.45))]"
-                        draggable={false}
-                      />
-                    </div>
 
                     {canEnter ? (
                       <button
                         onClick={() => handleEnter(lvl.levelId)}
                         className="spin-btn spin-btn-enter relative w-full rounded-[14px] bg-[#1a1725] px-4 py-3 text-[14px] font-bold uppercase tracking-[0.12em] text-[#FF9B3D] transition-all duration-300"
                       >
-                        <span className="relative z-10">Enter — {formatSol(price)} SOL / dig</span>
+                        <span className="relative z-10">Enter</span>
                       </button>
                     ) : (
                       <button
@@ -168,15 +151,6 @@ export default function PackShop() {
 
                     <div className="my-3 h-px w-full bg-gradient-to-r from-transparent via-muted/20 to-transparent" />
 
-                    {/* Tool image — tweak h-[64px] to resize */}
-                    <div className="flex justify-center mb-3">
-                      <img
-                        src={lvl.toolImg}
-                        alt={lvl.tool}
-                        className="h-[64px] w-auto object-contain opacity-40"
-                        draggable={false}
-                      />
-                    </div>
 
                     <button className="w-full rounded-[14px] bg-gradient-to-b from-[#252230] to-[#1a1824] border border-muted/15 px-4 py-2.5 text-[13px] font-bold uppercase tracking-[0.08em] text-muted/35 cursor-not-allowed flex items-center justify-center gap-1.5" disabled>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
