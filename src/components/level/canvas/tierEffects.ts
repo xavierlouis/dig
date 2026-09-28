@@ -129,7 +129,7 @@ export function drawTierEffect(ctx: CanvasRenderingContext2D, effect: TierEffect
 
     // Payout text
     if (effect.payoutText) {
-      ctx.font = 'bold 18px monospace';
+      ctx.font = 'bold 18px "JetBrains Mono", monospace';
       ctx.fillStyle = effect.tier === 'dust' ? '#4A4860' : '#00C853';
       ctx.fillText(effect.payoutText, effect.x, effect.y - 15);
     }

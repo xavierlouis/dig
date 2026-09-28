@@ -2,21 +2,13 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { motion, useSpring, useTransform } from 'framer-motion';
-import { useEffect } from 'react';
-
-function AnimatedNumber({ value }: { value: number }) {
-  const spring = useSpring(value, { stiffness: 80, damping: 20 });
-  const display = useTransform(spring, (v) => v.toFixed(2));
-
-  useEffect(() => { spring.set(value); }, [value, spring]);
-
-  return <motion.span>{display}</motion.span>;
-}
+import { useWeeklyToken } from '@/hooks/useWeeklyToken';
+import { formatSol } from '@/lib/game/economy';
+import JackpotDisplay from './JackpotDisplay';
 
 export default function DigHero() {
-  const token = useGameStore((s) => s.todaysToken);
-  const jackpotBalance = useGameStore((s) => s.jackpotBalance);
+  const token = useWeeklyToken();
+  const solSpent = useGameStore((s) => s.jackpot?.buyingNow.solSpentThisWeek ?? 0);
 
   // Fallback while loading
   const coinName = token?.name ?? "$RUGCAT";
@@ -27,12 +19,9 @@ export default function DigHero() {
   return (
     // Panel: transparent bg, gradient border that fades at top
     <div className="relative border-fade rounded-xl2 overflow-hidden">
-      {/* Jackpot pill — top-right */}
-      <div className="absolute top-3 right-3 z-20 rounded-full bg-black/50 border border-[#FFD700]/20 px-4 py-1.5">
-        <span className="text-sm text-white/60">Jackpot: </span>
-        <span className="font-mono text-sm font-bold text-[#FFD700]">
-          <AnimatedNumber value={jackpotBalance} /> SOL
-        </span>
+      {/* Jackpot crypt bag — top-right */}
+      <div className="absolute top-3 right-3 z-30">
+        <JackpotDisplay />
       </div>
       {/* Tomb scene — pt only, no bottom padding so grass is flush */}
       <div className="flex justify-center pt-8">
@@ -55,7 +44,7 @@ export default function DigHero() {
             {/* Layer 3 (front): Text overlay — sized to tomb image, not container */}
             <div className="absolute inset-0 z-20 flex flex-col items-center px-[18%] pt-[25%] pb-[18%]">
               <p className="text-[clamp(8px,2.2vw,11px)] uppercase tracking-[0.18em] text-muted/70 font-semibold">
-                Today&apos;s Token
+                Token of the Week
               </p>
 
               {/* Coin name */}
@@ -88,6 +77,19 @@ export default function DigHero() {
             }}
           />
         </div>
+      </div>
+
+      {/* Weekly buy pressure — engraved in the grass under the tomb */}
+      <div className="absolute inset-x-0 bottom-3 z-20 flex items-center justify-center gap-3 px-4">
+        <span className="h-px w-12 bg-gradient-to-r from-transparent to-[#00C853]/50" />
+        <p className="font-cinzel text-[12px] font-semibold uppercase tracking-[0.16em] text-white/55">
+          Vault bought{' '}
+          <span className="font-bold text-[#2bdc79] [text-shadow:0_0_10px_rgba(43,220,121,0.45)]">
+            {formatSol(solSpent, 2)} SOL
+          </span>{' '}
+          of <span className="text-ink/85">{token.name}</span> this week
+        </p>
+        <span className="h-px w-12 bg-gradient-to-l from-transparent to-[#00C853]/50" />
       </div>
     </div>
   );

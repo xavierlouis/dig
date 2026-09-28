@@ -3,6 +3,7 @@
 
 import WalletButton from './WalletButton';
 import SoundToggle from './SoundToggle';
+import CreditPill from './CreditPill';
 
 export default function Header() {
   return (
@@ -14,6 +15,9 @@ export default function Header() {
         alt="DIG"
         className="w-[160px] h-auto"
       />
+
+      {/* Center: Credit */}
+      <CreditPill />
 
       {/* Right: Sound + Wallet */}
       <div className="flex items-center gap-2">

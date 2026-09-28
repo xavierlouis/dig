@@ -1,70 +1,65 @@
 // src/config/economy.ts
+// Source of truth for the credit-model economy. See documentation/CREDIT_LEDGER_PLAN.md §2.
+// Money is integer lamports (JS numbers are exact up to ~9M SOL).
 
-import type { LevelId, ItemType, TierName } from '@/services/types';
+import type { LevelId, ItemType } from '@/services/types';
+
+export const LAMPORTS_PER_SOL = 1_000_000_000;
 
 interface LevelConfig {
   item: ItemType;
-  price: number; // in SOL
-  rewardMultiplier: number;
+  priceLamports: number; // per dig
+  locked: boolean;
 }
 
+/** Instant tiers. Dust is the remainder; Resurrect odds scale with the dig price. */
+type InstantTier = 'bone' | 'coffin' | 'zombie';
+
 interface TierConfig {
-  odds: number;
-  solPayout: number;
-  tokenPayout: number;
-  hasChoice: boolean;
+  oddsPpm: number;    // parts per million
+  payoutX100: number; // payout as a multiple of the dig price, ×100
 }
 
 export const ECONOMY = {
   LEVELS: {
-    shallow_grave: { item: 'pickaxe', price: 0.06, rewardMultiplier: 1 },
-    deep_crypt:    { item: 'lamp',    price: 0.15, rewardMultiplier: 3 },
-    ancient_vault: { item: 'key',     price: 0.50, rewardMultiplier: 10 },
+    shallow_grave: { item: 'pickaxe', priceLamports: 20_000_000, locked: false },
+    deep_crypt:    { item: 'lamp',    priceLamports: 50_000_000, locked: true },
+    ancient_vault: { item: 'key',     priceLamports: 150_000_000, locked: true },
   } satisfies Record<LevelId, LevelConfig>,
 
-  DIGS_PER_PACK: 3,
-
-  SPLITS: {
-    PRIZE_POOL: 0.60,
-    TOKEN_BUY: 0.20,
-    TREASURY: 0.15,
-    JACKPOT: 0.05,
-  },
+  TOMBS_PER_ROUND: 3, // visual only
 
   TIERS: {
-    dust:      { odds: 0.65,  solPayout: 0,     tokenPayout: 0,    hasChoice: false },
-    bone:      { odds: 0.20,  solPayout: 0.005, tokenPayout: 0,    hasChoice: false },
-    coffin:    { odds: 0.10,  solPayout: 0.03,  tokenPayout: 0.04, hasChoice: true  },
-    zombie:    { odds: 0.045, solPayout: 0.10,  tokenPayout: 0.14, hasChoice: true  },
-    resurrect: { odds: 0.005, solPayout: 0,     tokenPayout: 0,    hasChoice: true  },
-    // Resurrect payout = JACKPOT.PAYOUT_PERCENT * current jackpot
-  } satisfies Record<TierName, TierConfig>,
+    bone:   { oddsPpm: 200_000, payoutX100: 50 },
+    coffin: { oddsPpm: 100_000, payoutX100: 200 },
+    zombie: { oddsPpm: 40_000,  payoutX100: 1000 },
+  } satisfies Record<InstantTier, TierConfig>,
 
   JACKPOT: {
-    SEED: 1.0,
-    PAYOUT_PERCENT: 0.50,
+    HIT_PPM_PER_SOL: 10_000,     // 1% per SOL of dig price → Shallow 200 ppm (1 in 5,000)
+    SPLIT_BPS: 2_000,            // 20% of each wager goes to the crypt bag
+    WINNER_SHARE_BPS: 8_000,     // winner takes 80% of every holding, 20% seeds the next jackpot
+    LAUNCH_SEED_LAMPORTS: 1_000_000_000, // 1 SOL house seed
   },
 
-  OPTION_B_PREMIUM: 1.33,
+  HOUSE_SPLIT_BPS: 1_000, // 10%
+
+  DEPOSIT: {
+    MIN_LAMPORTS: 50_000_000,
+    PRESETS_SOL: [0.1, 0.25, 0.5, 1],
+  },
+
+  WITHDRAW: {
+    MIN_LAMPORTS: 10_000_000,
+    AUTO_MAX_LAMPORTS: 5_000_000_000,
+    DAILY_AUTO_MAX_LAMPORTS: 20_000_000_000,
+  },
 } as const;
 
-/** Get level config by LevelId */
 export function getLevelConfig(level: LevelId) {
   return ECONOMY.LEVELS[level];
 }
 
-/** Get tier config by TierName */
-export function getTierConfig(tier: TierName) {
-  return ECONOMY.TIERS[tier];
-}
-
-/** Get item type for a level */
 export function getItemForLevel(level: LevelId): ItemType {
   return ECONOMY.LEVELS[level].item;
-}
-
-/** Get level ID from item type */
-export function getLevelForItem(item: ItemType): LevelId {
-  const entry = Object.entries(ECONOMY.LEVELS).find(([, cfg]) => cfg.item === item);
-  return entry![0] as LevelId;
 }

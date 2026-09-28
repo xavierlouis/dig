@@ -1,17 +1,19 @@
 // src/components/level/LevelSummary.tsx
+// Session summary, shown when the player leaves the level.
 'use client';
 
-import type { LevelSession, TierName } from '@/services/types';
-import { ECONOMY } from '@/config/economy';
+import type { TierName } from '@/services/types';
+import type { SessionStats } from '@/store/useGameStore';
+import { TIER_ORDER, formatSol } from '@/lib/game/economy';
 
 interface LevelSummaryProps {
-  session: LevelSession;
-  maxDigs: number;
-  onBuyAnother: () => void;
+  stats: SessionStats;
+  credit: number;
+  onTopUp: () => void;
   onBackToGraveyard: () => void;
 }
 
-const TIER_COLORS: Record<TierName, string> = {
+export const TIER_COLORS: Record<TierName, string> = {
   dust: '#6A7BFF',
   bone: '#C8C0D0',
   coffin: '#CD7F32',
@@ -19,7 +21,7 @@ const TIER_COLORS: Record<TierName, string> = {
   resurrect: '#FFD700',
 };
 
-const TIER_LABELS: Record<TierName, string> = {
+export const TIER_LABELS: Record<TierName, string> = {
   dust: 'Dust',
   bone: 'Bone',
   coffin: 'Coffin',
@@ -30,103 +32,75 @@ const TIER_LABELS: Record<TierName, string> = {
 const TIER_EMOJIS: Record<TierName, string> = {
   dust: '\u{1F480}',
   bone: '\u{1F9B4}',
-  coffin: '\u26B0\uFE0F',
+  coffin: '⚰️',
   zombie: '\u{1F9DF}',
   resurrect: '\u{1F48E}',
 };
 
-export default function LevelSummary({ session, maxDigs, onBuyAnother, onBackToGraveyard }: LevelSummaryProps) {
-  const levelConfig = ECONOMY.LEVELS[session.level];
-  const totalSol = session.tombs.reduce((sum, t) => sum + (t.reveal?.actualPayout ?? 0), 0);
-  const tokenChoices = session.tombs.filter((t) => t.reveal?.choice === 'token');
-  const tierColors = session.tombs.map((t) => TIER_COLORS[t.reveal?.tier ?? 'dust']);
+export default function LevelSummary({ stats, credit, onTopUp, onBackToGraveyard }: LevelSummaryProps) {
+  const best = stats.best ?? 'dust';
+  const net = stats.won - stats.wagered;
+  const bestColor = TIER_COLORS[best];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       <div
         className="relative w-full max-w-[480px] rounded-xl2 p-8 bg-gradient-to-b from-[#1A1A3E]/95 to-[#0A0A1A]/95 shadow-panel animate-[tierShift_4s_ease-in-out_infinite]"
-        style={{
-          '--tier-0': tierColors[0],
-          '--tier-1': tierColors[1],
-          '--tier-2': tierColors[2],
-        } as React.CSSProperties}
+        style={{ '--tier-0': bestColor, '--tier-1': bestColor + 'aa', '--tier-2': bestColor + '66' } as React.CSSProperties}
       >
-        {/* Header */}
         <h2 className="text-center font-gothic text-[24px] tracking-[0.08em] text-ink">
-          {maxDigs < 3 ? 'Round Complete' : "You're Out of Pickaxes!"}
+          You Climb Back to the Surface
         </h2>
 
-        {/* Tomb results */}
-        <div className="mt-6 flex justify-center gap-4">
-          {session.tombs.map((tomb) => {
-            const wasLocked = tomb.index >= maxDigs;
-            const tier = tomb.reveal?.tier ?? 'dust';
-            const choice = tomb.reveal?.choice;
-            const payout = tomb.reveal?.actualPayout ?? 0;
+        {/* Best find */}
+        <div className="mt-6 flex justify-center">
+          <div
+            className="flex h-[88px] w-[88px] flex-col items-center justify-center gap-1 rounded-[12px] border"
+            style={{ borderColor: bestColor + '40', background: bestColor + '15' }}
+          >
+            <span className="text-[26px] leading-none">{TIER_EMOJIS[best]}</span>
+            <span className="text-[11px] font-bold uppercase" style={{ color: bestColor }}>{TIER_LABELS[best]}</span>
+          </div>
+        </div>
+        <p className="mt-2 text-center text-[11px] uppercase tracking-[0.14em] text-muted/40">Best find</p>
 
-            if (wasLocked) {
-              return (
-                <div key={tomb.index} className="flex flex-col items-center gap-1.5 opacity-30">
-                  <div className="flex h-[80px] w-[80px] items-center justify-center rounded-[12px] border border-muted/20 bg-muted/5">
-                    <span className="text-[11px] font-bold uppercase text-muted/40">—</span>
-                  </div>
-                  <span className="text-[11px] font-mono text-muted/30">Locked</span>
-                </div>
-              );
-            }
-
-            return (
-              <div key={tomb.index} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="flex h-[80px] w-[80px] flex-col items-center justify-center gap-1 rounded-[12px] border"
-                  style={{
-                    borderColor: TIER_COLORS[tier] + '40',
-                    background: TIER_COLORS[tier] + '15',
-                  }}
-                >
-                  <span className="text-[24px] leading-none">{TIER_EMOJIS[tier]}</span>
-                  <span className="text-[11px] font-bold uppercase" style={{ color: TIER_COLORS[tier] }}>
-                    {TIER_LABELS[tier]}
-                  </span>
-                </div>
-                <span className="text-[11px] font-mono text-eerie">
-                  {payout > 0 ? `+${payout.toFixed(3)} SOL` : '0 SOL'}
-                </span>
-                {choice && choice !== 'sol' && tier !== 'dust' && tier !== 'bone' && (
-                  <span className="text-[10px] font-semibold uppercase text-[#00C853]/70">
-                    Chose Token
-                  </span>
-                )}
-              </div>
-            );
-          })}
+        {/* Tier counts */}
+        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px]">
+          {TIER_ORDER.filter((t) => stats.tiers[t] > 0).map((t) => (
+            <span key={t} style={{ color: TIER_COLORS[t] }}>
+              {TIER_LABELS[t]} ×{stats.tiers[t]}
+            </span>
+          ))}
         </div>
 
         {/* Stats */}
-        <div className="mt-6 space-y-2 text-center">
-          <p className="text-[15px]">
-            <span className="text-ink/90">Total Won: </span>
-            <span className={`font-mono font-bold ${totalSol > 0 ? 'text-eerie' : 'text-muted/40'}`}>
-              {totalSol.toFixed(3)} SOL
-            </span>
-          </p>
-          {tokenChoices.length > 0 && (
-            <p className="text-[13px] text-muted/50">
-              {tokenChoices.length} token reward{tokenChoices.length > 1 ? 's' : ''} chosen
-            </p>
+        <dl className="mx-auto mt-6 grid max-w-[280px] grid-cols-2 gap-y-1.5 font-mono text-[13px]">
+          <dt className="text-muted/50">Digs</dt><dd className="text-right text-ink">{stats.digs}</dd>
+          <dt className="text-muted/50">Wagered</dt><dd className="text-right text-ink">{formatSol(stats.wagered)} SOL</dd>
+          <dt className="text-muted/50">Won</dt><dd className="text-right text-ink">{formatSol(stats.won)} SOL</dd>
+          <dt className="text-muted/50">Net</dt>
+          <dd className={`text-right font-bold ${net > 0 ? 'text-eerie' : 'text-muted/60'}`}>
+            {net >= 0 ? '+' : '−'}{formatSol(Math.abs(net))} SOL
+          </dd>
+          {stats.jackpotValueSol > 0 && (
+            <>
+              <dt className="text-[#FFD700]/70">Jackpot</dt>
+              <dd className="text-right text-[#FFD700]">≈ {stats.jackpotValueSol.toFixed(2)} SOL</dd>
+            </>
           )}
-        </div>
+          <dt className="text-muted/50">Credit left</dt><dd className="text-right text-ink">{formatSol(credit)} SOL</dd>
+        </dl>
 
         {/* Buttons */}
         <div className="mt-8 flex flex-col gap-3">
           <button
-            onClick={onBuyAnother}
+            onClick={onTopUp}
             className="spin-btn spin-btn-mint w-full rounded-[14px] bg-[#1a1725] px-4 py-3 text-[14px] font-bold uppercase tracking-[0.12em] text-[#f0c850] transition-all duration-300"
           >
-            <span className="relative z-10">Buy Pickaxe Pack – {levelConfig.price} SOL</span>
+            <span className="relative z-10">Top Up &amp; Keep Digging</span>
           </button>
           <button
             onClick={onBackToGraveyard}

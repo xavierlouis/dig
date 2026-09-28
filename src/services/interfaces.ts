@@ -1,27 +1,22 @@
 // src/services/interfaces.ts
 
-import type { LevelId, LevelSession, TombReveal, ClaimResult } from './types';
+import type {
+  Account, DigResult, JackpotState, LevelId, SeedRotation, Withdrawal,
+} from './types';
 
-export interface IDigService {
-  mintDigs(level: LevelId, count: number): Promise<number>; // returns new dig balance
-  startRound(level: LevelId): Promise<LevelSession>;
-  digAll(roundId: string): Promise<TombReveal[]>; // burns all digs, returns all reveals
-  claimReward(revealId: string, choice: 'sol' | 'token'): Promise<ClaimResult>;
-}
-
-export interface IWalletService {
-  connect(): Promise<string>;
-  disconnect(): void;
-  getBalance(): Promise<number>;
-  isConnected(): boolean;
-}
-
-export interface IPriceService {
-  getTokenPrice(tokenMint: string): Promise<number>;
-  getBuyPressureToday(): Promise<number>;
-}
-
-export interface IEconomyService {
-  getPrizePoolBalance(): Promise<number>;
-  getJackpotBalance(): Promise<number>;
+/**
+ * The whole game behind one interface: the mock implements it in the browser,
+ * the server implementation calls the ledger API routes.
+ * Errors are thrown as GameError (see ./errors).
+ */
+export interface IGameService {
+  signIn(): Promise<Account>;                     // mock: instant
+  signOut(): Promise<void>;
+  getAccount(): Promise<Account | null>;          // null when not signed in
+  getWalletBalance(): Promise<number>;            // wallet SOL, lamports
+  deposit(lamports: number): Promise<Account>;    // server mode: 1 wallet popup
+  dig(level: LevelId, requestId: string): Promise<DigResult>;
+  withdraw(lamports: number, requestId: string): Promise<{ withdrawal: Withdrawal; account: Account }>;
+  rotateSeed(clientSeed?: string): Promise<SeedRotation>;
+  getJackpot(): Promise<JackpotState>;
 }

@@ -1,51 +1,70 @@
 // src/services/mock/mockWalletService.ts
+// Fake wallet for mock mode. Its SOL balance persists in localStorage so deposits
+// and withdrawals survive a refresh.
 
-import type { IWalletService } from '../interfaces';
+import { LAMPORTS_PER_SOL } from '@/config/economy';
 
 const MOCK_ADDRESS = '7xKX...m4Dq'; // truncated display
 const MOCK_FULL_ADDRESS = '7xKXpN3Rqb8vJ5e2LwZ9mK4hY6cT1fA3nU8dR0pM4Dq';
-const INITIAL_BALANCE = 2.0; // SOL
+const INITIAL_LAMPORTS = 5 * LAMPORTS_PER_SOL;
+const STORAGE_KEY = 'dig_mock_wallet_v1';
 
 let connected = false;
-let balance = INITIAL_BALANCE;
+let lamports: number | null = null;
 
-export const mockWalletService: IWalletService = {
+function load(): number {
+  if (lamports !== null) return lamports;
+  lamports = INITIAL_LAMPORTS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw !== null && Number.isFinite(Number(raw))) lamports = Number(raw);
+  } catch {
+    // storage unavailable — keep the default
+  }
+  return lamports;
+}
+
+function save(value: number) {
+  lamports = value;
+  try { localStorage.setItem(STORAGE_KEY, String(value)); } catch { /* ignore */ }
+}
+
+export const mockWalletService = {
   async connect(): Promise<string> {
-    // Simulate connection delay
-    await new Promise((r) => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 600));
     connected = true;
-    balance = INITIAL_BALANCE;
+    load();
     return MOCK_FULL_ADDRESS;
   },
 
   disconnect(): void {
     connected = false;
-    balance = 0;
-  },
-
-  async getBalance(): Promise<number> {
-    await new Promise((r) => setTimeout(r, 200));
-    return balance;
   },
 
   isConnected(): boolean {
     return connected;
   },
+
+  /** Lamports. */
+  getBalance(): number {
+    return load();
+  },
 };
 
-/** Internal: adjust balance (used by mockItemService) */
-export function mockDeductBalance(amount: number): boolean {
-  if (balance < amount) return false;
-  balance -= amount;
+/** Internal: used by mockGameService for deposits and withdrawals. */
+export function mockWalletDebit(amount: number): boolean {
+  const current = load();
+  if (current < amount) return false;
+  save(current - amount);
   return true;
 }
 
-export function mockAddBalance(amount: number): void {
-  balance += amount;
+export function mockWalletCredit(amount: number): void {
+  save(load() + amount);
 }
 
-export function mockGetBalance(): number {
-  return balance;
+export function mockWalletReset(): void {
+  save(INITIAL_LAMPORTS);
 }
 
 export { MOCK_FULL_ADDRESS, MOCK_ADDRESS };

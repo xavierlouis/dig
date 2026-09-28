@@ -3,6 +3,8 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { mockWalletService, MOCK_ADDRESS } from '@/services/mock/mockWalletService';
+import { gameService } from '@/services';
+import { refreshAccount } from '@/services/sync';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
@@ -17,8 +19,9 @@ export default function WalletButtonMock() {
     setLoading(true);
     try {
       const address = await mockWalletService.connect();
-      const bal = await mockWalletService.getBalance();
-      connectWallet(address, bal);
+      connectWallet(address, 0);
+      await gameService.signIn();
+      await refreshAccount();
     } finally {
       setLoading(false);
     }
@@ -27,6 +30,7 @@ export default function WalletButtonMock() {
   const handleDisconnect = () => {
     mockWalletService.disconnect();
     disconnectWallet();
+    void gameService.signOut();
   };
 
   return (

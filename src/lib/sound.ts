@@ -20,9 +20,6 @@ const sounds = {
   // Ambient — level page background
   graveyardLoop: safeHowl('/sounds/level/graveyardLoop.mp3', { loop: true, volume: 0.3 }),
 
-  // UI
-  itemAcquire: safeHowl('/sounds/ui/item-acquire.mp3', { volume: 0.5 }),
-
   // Level
   enterLevel: safeHowl('/sounds/level/laugh-enter-level.mp3', { volume: 0.6 }),
   tombOpen: safeHowl('/sounds/level/tomb-open.mp3', { volume: 0.5 }),
@@ -33,10 +30,6 @@ const sounds = {
   tierCoffin: safeHowl('/sounds/reveal/tier-coffin.mp3', { volume: 0.6 }),
   tierZombie: safeHowl('/sounds/reveal/tier-zombie.mp3', { volume: 0.8 }),
   tierResurrect: safeHowl('/sounds/reveal/tier-resurrect.mp3', { volume: 1.0 }),
-
-  // Choice
-  optionA: safeHowl('/sounds/choice/option-a.mp3', { volume: 0.5 }),
-  optionB: safeHowl('/sounds/choice/option-b.mp3', { volume: 0.5 }),
 };
 
 export type SoundName = keyof typeof sounds;

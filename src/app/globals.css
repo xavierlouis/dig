@@ -150,3 +150,13 @@
     box-shadow: 0 0 16px color-mix(in srgb, var(--tier-2) 25%, transparent);
   }
 }
+
+/* Level call to action: slow torch-light breathing */
+@keyframes ctaBreathe{
+  0%,100%{ opacity:.72; text-shadow:0 0 6px rgba(255,155,61,.25); }
+  50%{ opacity:1; text-shadow:0 0 14px rgba(255,155,61,.6), 0 0 30px rgba(255,155,61,.25); }
+}
+.cta-breathe{ animation: ctaBreathe 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce){
+  .cta-breathe{ animation:none; opacity:.9; }
+}

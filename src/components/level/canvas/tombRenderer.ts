@@ -87,8 +87,7 @@ export interface TombVisual {
   glowIntensity: number;     // 0-1, pulsing glow on sealed tombs
   tierColor: string | null;  // set after reveal for residual glow
   tierLabel: string | null;  // display name after reveal
-  solPayout: number;         // SOL won from this tomb
-  choiceLabel: string | null; // 'SOL' or 'TOKEN' after player chooses
+  payoutLabel: string | null; // e.g. "+0.04 SOL", shown under the tier name
 }
 
 // Tomb anchor points on the image (0-1 relative coords)
@@ -131,8 +130,7 @@ export function repositionTombs(existing: TombVisual[], canvasWidth: number, can
     glowIntensity: existing[i]?.glowIntensity ?? 0.3,
     tierColor: existing[i]?.tierColor ?? null,
     tierLabel: existing[i]?.tierLabel ?? null,
-    solPayout: existing[i]?.solPayout ?? 0,
-    choiceLabel: existing[i]?.choiceLabel ?? null,
+    payoutLabel: existing[i]?.payoutLabel ?? null,
   }));
 }
 
@@ -272,7 +270,7 @@ function drawCracks(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 }
 
 function drawOpenedTomb(ctx: CanvasRenderingContext2D, tomb: TombVisual): void {
-  const { x, y, width, height, tierColor, tierLabel, solPayout, choiceLabel } = tomb;
+  const { x, y, width, height, tierColor, tierLabel, payoutLabel } = tomb;
 
   const drawW = width;
   const drawH = height;
@@ -314,18 +312,12 @@ function drawOpenedTomb(ctx: CanvasRenderingContext2D, tomb: TombVisual): void {
     ctx.shadowBlur = 0;
     lineY += fontSize + 4;
 
-    // Choice + payout
-    if (choiceLabel && solPayout > 0) {
-      const payoutSize = Math.max(11, drawW * 0.07);
-      ctx.font = `600 ${payoutSize}px "Cinzel", serif`;
-      const choiceColor = choiceLabel === 'SOL' ? 'rgba(200, 170, 255, 0.85)' : 'rgba(100, 220, 130, 0.85)';
-      ctx.fillStyle = choiceColor;
-      ctx.fillText(`Chose ${choiceLabel} · +${solPayout.toFixed(3)}`, x, lineY);
-    } else if (solPayout > 0) {
+    // Payout
+    if (payoutLabel) {
       const payoutSize = Math.max(11, drawW * 0.07);
       ctx.font = `600 ${payoutSize}px "Cinzel", serif`;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.fillText(`+${solPayout.toFixed(3)} SOL`, x, lineY);
+      ctx.fillText(payoutLabel, x, lineY);
     }
   }
 }

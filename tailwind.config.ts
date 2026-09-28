@@ -22,7 +22,11 @@ export default {
         xl2: "18px",
       },
       fontFamily: {
+        // Loaded from Google Fonts in src/app/layout.tsx (plain family names so the canvas can use them too)
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
         gothic: ['"Pirata One"', "cursive"],
+        cinzel: ['Cinzel', "serif"],
       },
     },
   },

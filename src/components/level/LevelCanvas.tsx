@@ -1,8 +1,8 @@
 // src/components/level/LevelCanvas.tsx
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
-import type { LevelSession, TombReveal, TierName, DeadToken } from '@/services/types';
+import { useRef, useEffect } from 'react';
+import type { DigResult, TierName, DeadToken } from '@/services/types';
 import { drawCaveEnvironment, createTombs, repositionTombs, drawTomb, hitTestTomb, type TombVisual } from './canvas/tombRenderer';
 import { createPickaxeState, startSwing, updateSwing, drawPickaxe } from './canvas/pickaxeAnimation';
 import { createTombstoneArtifact, startRise, updateRise, drawTombstoneArtifact } from './canvas/tombstoneRenderer';
@@ -14,33 +14,37 @@ import { createShakeState, updateShake, microShake, mediumShake, heavyShake } fr
 import { createTierEffect, startTierEffect, updateTierEffect, drawTierEffect, getTierColor, getTierLabel } from './canvas/tierEffects';
 import { createSequencer, startSequencer, updateSequencer, isSequencerRunning, type AnimationStep } from './canvas/animationSequencer';
 import { SoundEngine, type SoundName } from '@/lib/sound';
+import { formatSol } from '@/lib/game/economy';
 
 interface LevelCanvasProps {
-  session: LevelSession;
+  roundKey: number;       // changes when a new round of 3 tombs should rise
   token: DeadToken;
-  maxDigs: number;
+  interactive: boolean;   // false while a tomb animates, out of credit, or an overlay is open
+  dimmed: boolean;        // out of credit: sealed tombs grey out
+  autoDig: boolean;       // after a tomb, open the round's next sealed tomb without a tap
+  resumeKey: number;      // bumped by parent to continue a round that stopped (e.g. after the jackpot overlay)
   onTombTapped: (index: number) => void;
-  onTierRevealed: (index: number, tier: TierName) => void;
-  onChoiceReady: (index: number) => void;
-  onAutoAdvance: (index: number) => void;
-  onComplete: () => void;
-  revealResult: TombReveal | null; // set by parent when openTomb resolves
-  choiceResults: Record<number, { choice: 'sol' | 'token'; payout: number }>;
+  onTierRevealed: (index: number, dig: DigResult) => void;
+  onTombDone: (index: number, dig: DigResult) => void;
+  revealResult: DigResult | null; // set by parent when dig() resolves
+  digFailed: number;              // bumped by parent when dig() fails: the tomb reseals
 }
 
-export default function LevelCanvas({
-  session,
-  token,
-  maxDigs,
-  onTombTapped,
-  onTierRevealed,
-  onChoiceReady,
-  onAutoAdvance,
-  onComplete,
-  revealResult,
-  choiceResults,
-}: LevelCanvasProps) {
+// Pause after the reveal before the next tomb can be tapped
+const ADVANCE_DELAY_MS: Record<TierName, number> = {
+  dust: 500,
+  bone: 500,
+  coffin: 1000,
+  zombie: 1500,
+  resurrect: 300, // parent shows the jackpot overlay
+};
+
+const ROUND_RISE_SPEED = 1 / 0.6; // tombs fade in over 0.6s
+
+export default function LevelCanvas(props: LevelCanvasProps) {
+  const { roundKey, token, digFailed, resumeKey } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const propsRef = useRef(props);
   const stateRef = useRef({
     tombs: [] as TombVisual[],
     pickaxe: createPickaxeState(),
@@ -55,75 +59,57 @@ export default function LevelCanvas({
     tombsOpened: 0,
     lastTime: 0,
     initialized: false,
-    pendingReveal: null as TombReveal | null,
+    pendingReveal: null as DigResult | null,
+    currentDig: null as DigResult | null,
     transitionAlpha: 1, // fade-in from black
+    tombsAlpha: 1,      // new rounds fade in
+    roundKey,
+    digFailed,
+    resumeKey,
+    openTomb: null as ((tomb: TombVisual) => void) | null,
   });
+
+  // Latest props for the animation loop, without restarting it
+  useEffect(() => { propsRef.current = props; });
 
   // Handle incoming reveal result
   useEffect(() => {
-    if (revealResult) {
-      stateRef.current.pendingReveal = revealResult;
+    if (props.revealResult) {
+      stateRef.current.pendingReveal = props.revealResult;
     }
-  }, [revealResult]);
+  }, [props.revealResult]);
 
-  // Update tomb visuals when choices are made
+  // New round: fresh sealed tombs rise
   useEffect(() => {
     const s = stateRef.current;
-    for (const [indexStr, result] of Object.entries(choiceResults)) {
-      const tomb = s.tombs[Number(indexStr)];
-      if (tomb) {
-        tomb.choiceLabel = result.choice === 'sol' ? 'SOL' : 'TOKEN';
-        tomb.solPayout = result.payout;
-      }
-    }
-  }, [choiceResults]);
-
-  const handleClick = useCallback((e: MouseEvent) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (s.roundKey === roundKey || !canvas) return;
+    s.roundKey = roundKey;
+    s.tombs = createTombs(canvas.width, canvas.height);
+    s.tombsOpened = 0;
+    s.animatingTomb = -1;
+    s.tombsAlpha = 0;
+  }, [roundKey]);
+
+  // Resume a round that stopped part-way (e.g. the jackpot overlay was open)
+  useEffect(() => {
     const s = stateRef.current;
+    if (s.resumeKey === resumeKey) return;
+    s.resumeKey = resumeKey;
+    const next = nextSealedTomb(s.tombs);
+    if (next && s.animatingTomb < 0 && s.tombsOpened > 0 && propsRef.current.autoDig) s.openTomb?.(next);
+  }, [resumeKey]);
 
-    // Don't accept clicks during animation
-    if (s.animatingTomb >= 0 || (s.sequencer && isSequencerRunning(s.sequencer))) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    for (const tomb of s.tombs) {
-      // Skip locked tombs (beyond available digs)
-      if (tomb.index >= maxDigs) continue;
-      if ((tomb.state === 'sealed' || tomb.state === 'hover') && hitTestTomb(tomb, x, y)) {
-        s.animatingTomb = tomb.index;
-        tomb.state = 'opening';
-        onTombTapped(tomb.index);
-        break;
-      }
-    }
-  }, [onTombTapped, maxDigs]);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Dig failed: reseal the tomb that was waiting for its result
+  useEffect(() => {
     const s = stateRef.current;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    let hovering = false;
-    for (const tomb of s.tombs) {
-      // Skip locked tombs
-      if (tomb.index >= maxDigs) continue;
-      if ((tomb.state === 'sealed' || tomb.state === 'hover') && hitTestTomb(tomb, x, y)) {
-        tomb.state = 'hover';
-        hovering = true;
-      } else if (tomb.state === 'hover') {
-        tomb.state = 'sealed';
-      }
-    }
-    canvas.style.cursor = hovering ? 'pointer' : 'default';
-  }, [maxDigs]);
+    if (s.digFailed === digFailed) return;
+    s.digFailed = digFailed;
+    const tomb = s.tombs[s.animatingTomb];
+    if (tomb && tomb.state === 'opening') tomb.state = 'sealed';
+    s.animatingTomb = -1;
+    s.pendingReveal = null;
+  }, [digFailed]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -133,6 +119,53 @@ export default function LevelCanvas({
     if (!ctx) return;
 
     const s = stateRef.current;
+
+    const toCanvasCoords = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      };
+    };
+
+    const openTomb = (tomb: TombVisual) => {
+      s.animatingTomb = tomb.index;
+      tomb.state = 'opening';
+      propsRef.current.onTombTapped(tomb.index);
+    };
+    s.openTomb = openTomb;
+
+    const canTap = () =>
+      propsRef.current.interactive
+      && s.animatingTomb < 0
+      && !(s.sequencer && isSequencerRunning(s.sequencer))
+      && s.tombsAlpha >= 1;
+
+    const handleClick = (e: MouseEvent) => {
+      if (!canTap()) return;
+      const { x, y } = toCanvasCoords(e);
+      for (const tomb of s.tombs) {
+        if ((tomb.state === 'sealed' || tomb.state === 'hover') && hitTestTomb(tomb, x, y)) {
+          openTomb(tomb);
+          break;
+        }
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const { x, y } = toCanvasCoords(e);
+      const tappable = canTap();
+      let hovering = false;
+      for (const tomb of s.tombs) {
+        if (tappable && (tomb.state === 'sealed' || tomb.state === 'hover') && hitTestTomb(tomb, x, y)) {
+          tomb.state = 'hover';
+          hovering = true;
+        } else if (tomb.state === 'hover') {
+          tomb.state = 'sealed';
+        }
+      }
+      canvas.style.cursor = hovering ? 'pointer' : 'default';
+    };
 
     // Resize canvas to fill screen
     const resize = () => {
@@ -160,6 +193,7 @@ export default function LevelCanvas({
 
       const w = canvas.width;
       const h = canvas.height;
+      const dimmed = propsRef.current.dimmed;
 
       // --- UPDATE ---
 
@@ -177,10 +211,9 @@ export default function LevelCanvas({
         }
       }
 
-      // Transition fade-in
-      if (s.transitionAlpha > 0) {
-        s.transitionAlpha = Math.max(0, s.transitionAlpha - dt * 1.2);
-      }
+      // Transition fade-in, new-round rise
+      if (s.transitionAlpha > 0) s.transitionAlpha = Math.max(0, s.transitionAlpha - dt * 1.2);
+      if (s.tombsAlpha < 1) s.tombsAlpha = Math.min(1, s.tombsAlpha + dt * ROUND_RISE_SPEED);
 
       // Shake
       updateShake(s.shake, dt);
@@ -203,27 +236,21 @@ export default function LevelCanvas({
       // Tombstone rise
       updateRise(s.artifact, dt);
 
-      // Tier effect
+      // Tier effect done → payout lands, then the tomb unlocks after a short pause
       const tierDone = updateTierEffect(s.tierEffect, dt);
-      if (tierDone && s.animatingTomb >= 0) {
-        const tomb = s.tombs[s.animatingTomb];
-        const tier = s.tierEffect.tier;
-        if (tier && tomb) {
-          onTierRevealed(s.animatingTomb, tier);
-          const hasChoice = tier === 'coffin' || tier === 'zombie' || tier === 'resurrect';
-          if (hasChoice) {
-            onChoiceReady(s.animatingTomb);
-            // Unlock canvas immediately — parent handles the choice overlay
-            finishTomb(s);
-          } else {
-            // Auto-advance for dust/bone
-            const idx = s.animatingTomb;
-            setTimeout(() => {
-              onAutoAdvance(idx);
-              finishTomb(s);
-            }, 500);
-          }
-        }
+      if (tierDone && s.animatingTomb >= 0 && s.currentDig) {
+        const idx = s.animatingTomb;
+        const dig = s.currentDig;
+        s.currentDig = null;
+        const round = s.roundKey;
+        propsRef.current.onTierRevealed(idx, dig);
+        setTimeout(() => {
+          finishTomb(s);
+          propsRef.current.onTombDone(idx, dig);
+          // One tap digs the whole round: open the next sealed tomb
+          const next = nextSealedTomb(s.tombs);
+          if (next && propsRef.current.autoDig && s.roundKey === round) openTomb(next);
+        }, ADVANCE_DELAY_MS[dig.tier]);
       }
 
       // Particles
@@ -236,9 +263,10 @@ export default function LevelCanvas({
 
       // Process pending reveal — build the animation sequence
       if (s.pendingReveal && s.animatingTomb >= 0) {
-        const reveal = s.pendingReveal;
+        const dig = s.pendingReveal;
         s.pendingReveal = null;
-        buildRevealSequence(s, reveal, w, h, token);
+        s.currentDig = dig;
+        buildRevealSequence(s, dig, w, h, propsRef.current.token);
       }
 
       // --- DRAW ---
@@ -247,18 +275,14 @@ export default function LevelCanvas({
 
       drawCaveEnvironment(ctx, w, h, s.flicker);
 
-      // Tombs
+      // Tombs (sealed ones grey out when out of credit)
       for (const tomb of s.tombs) {
-        // Dim locked tombs (beyond available digs)
-        if (tomb.index >= maxDigs) {
-          ctx.save();
-          ctx.globalAlpha = 0.3;
-          ctx.filter = 'grayscale(0.8)';
-          drawTomb(ctx, tomb, now);
-          ctx.restore();
-        } else {
-          drawTomb(ctx, tomb, now);
-        }
+        const dim = dimmed && (tomb.state === 'sealed' || tomb.state === 'hover');
+        ctx.save();
+        ctx.globalAlpha = s.tombsAlpha * (dim ? 0.3 : 1);
+        if (dim) ctx.filter = 'grayscale(0.8)';
+        drawTomb(ctx, tomb, now);
+        ctx.restore();
       }
 
       // Pickaxe
@@ -289,18 +313,20 @@ export default function LevelCanvas({
     animId = requestAnimationFrame(frame);
 
     return () => {
+      s.openTomb = null;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('click', handleClick);
       canvas.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [handleClick, handleMouseMove, token, onTierRevealed, onChoiceReady, onAutoAdvance]);
+  }, []);
 
   return (
     <canvas
       ref={canvasRef}
       className="fixed inset-0 z-50"
       style={{ background: '#0F0E0A' }}
+      aria-label={`Cave with three tombs. ${token.name} lies here.`}
     />
   );
 }
@@ -317,13 +343,17 @@ interface CanvasState {
   sequencer: ReturnType<typeof createSequencer> | null;
   animatingTomb: number;
   tombsOpened: number;
-  pendingReveal: TombReveal | null;
   [key: string]: unknown;
+}
+
+function payoutLabel(dig: DigResult): string | null {
+  if (dig.tier === 'resurrect' && dig.jackpot) return `≈ ${dig.jackpot.valueSol.toFixed(2)} SOL`;
+  return dig.payout > 0 ? `+${formatSol(dig.payout)} SOL` : null;
 }
 
 function buildRevealSequence(
   s: CanvasState,
-  reveal: TombReveal,
+  dig: DigResult,
   canvasW: number,
   canvasH: number,
   token: DeadToken,
@@ -346,9 +376,9 @@ function buildRevealSequence(
       onUpdate: (p) => { tomb.crackProgress = p; },
       onComplete: () => {
         tomb.state = 'opened';
-        tomb.tierColor = getTierColor(reveal.tier);
-        tomb.tierLabel = getTierLabel(reveal.tier);
-        tomb.solPayout = reveal.solPayout;
+        tomb.tierColor = getTierColor(dig.tier);
+        tomb.tierLabel = getTierLabel(dig.tier);
+        tomb.payoutLabel = payoutLabel(dig);
       },
     },
     // Step 3: Tombstone rises (0.5s)
@@ -357,7 +387,7 @@ function buildRevealSequence(
       duration: 0.5,
       onStart: () => {
         s.artifact.token = token;
-        s.artifact.tier = reveal.tier;
+        s.artifact.tier = dig.tier;
         startRise(s.artifact, tomb.x, tomb.y, canvasH);
       },
     },
@@ -375,18 +405,17 @@ function buildRevealSequence(
         s.artifact.visible = false;
 
         // Spawn tier-specific particles and shake
-        spawnTierEffects(s, reveal.tier, tomb.x, tomb.y);
+        spawnTierEffects(s, dig.tier, tomb.x, tomb.y);
 
         // Play tier sound
-        const tierSounds: Record<string, SoundName> = {
+        const tierSounds: Record<TierName, SoundName> = {
           dust: 'tierDust', bone: 'tierBone', coffin: 'tierCoffin',
           zombie: 'tierZombie', resurrect: 'tierResurrect',
         };
-        SoundEngine.play(tierSounds[reveal.tier]);
+        SoundEngine.play(tierSounds[dig.tier]);
 
         // Start tier text effect
-        const payoutText = reveal.solPayout > 0 ? `+${reveal.solPayout.toFixed(3)} SOL` : '';
-        startTierEffect(s.tierEffect, reveal.tier, tomb.x, tomb.y - tomb.height * 0.6, payoutText);
+        startTierEffect(s.tierEffect, dig.tier, tomb.x, tomb.y - tomb.height * 0.6, payoutLabel(dig) ?? '');
       },
     },
   ];
@@ -424,10 +453,12 @@ function spawnTierEffects(
   }
 }
 
-/** Mark a tomb animation as finished, check if all done */
-function finishTomb(s: Pick<CanvasState, 'animatingTomb' | 'tombsOpened' | 'tombs'>) {
+function nextSealedTomb(tombs: TombVisual[]): TombVisual | undefined {
+  return tombs.find((t) => t.state === 'sealed' || t.state === 'hover');
+}
+
+/** Mark a tomb animation as finished */
+function finishTomb(s: Pick<CanvasState, 'animatingTomb' | 'tombsOpened'>) {
   s.tombsOpened++;
   s.animatingTomb = -1;
 }
-
-
